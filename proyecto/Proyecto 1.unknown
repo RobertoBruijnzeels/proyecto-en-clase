@@ -1,0 +1,111 @@
+import pygame
+import matplotlib.pyplot as plt
+import numpy as np
+import json
+
+# Definición de colores
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+GRAY = (200, 200, 200)
+BLUE = (0, 0, 255)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+
+# Materiales comunes con su módulo de elasticidad en Pascales
+materiales = {
+    'acero': 210e9,      
+    'madera': 11e9,
+    'aluminio': 69e9,
+}
+
+# Función para calcular el momento de inercia según la sección transversal
+def calcular_inercia(seccion):
+    if seccion == 'rectangular':
+        base = 0.2  # metros
+        altura = 0.3  # metros
+        return (base * altura**3) / 12
+    elif seccion == 'circular':
+        radio = 0.15  # metros
+        return (np.pi * radio**4) / 4
+    elif seccion == 'I':
+        altura = 0.3  # metros
+        ancho_alma = 0.02  # metros
+        ancho_ala = 0.1  # metros
+        espesor_ala = 0.02  # metros
+        I = (ancho_ala * altura**3 / 12) - ((ancho_ala - ancho_alma) * (altura - 2 * espesor_ala)**3 / 12)
+        return I
+
+# Función para mostrar los diagramas de esfuerzos
+def mostrar_diagramas(longitud, posicion_carga, carga, modulo_elasticidad, inercia):
+    x = np.linspace(0, longitud, 500)
+    
+    # Reacciones en los apoyos (viga simplemente apoyada)
+    R1 = carga * (longitud - posicion_carga) / longitud
+    R2 = carga - R1
+
+    # Momento flector
+    M = np.piecewise(x, [x <= posicion_carga, x > posicion_carga],
+                     [lambda x: R1 * x, lambda x: R1 * x - carga * (x - posicion_carga)])
+    
+    # Esfuerzo cortante
+    V = np.piecewise(x, [x <= posicion_carga, x > posicion_carga],
+                     [lambda x: R1, lambda x: R1 - carga])
+
+    # Deflexión (Integración numérica)
+    EI = modulo_elasticidad * inercia
+    theta = np.zeros_like(x)
+    deflexion = np.zeros_like(x)
+    for i in range(1, len(x)):
+        dx = x[i] - x[i - 1]
+        theta[i] = theta[i - 1] + (M[i - 1] / EI) * dx
+        deflexion[i] = deflexion[i - 1] + theta[i - 1] * dx
+
+    # Graficar
+    plt.figure(figsize=(10, 8))
+
+    plt.subplot(3, 1, 1)
+    plt.plot(x, M, color='blue')
+    plt.title("Diagrama de Momento Flector")
+    plt.xlabel("Posición a lo largo de la viga (m)")
+    plt.ylabel("Momento (Nm)")
+    plt.grid(True)
+    
+    plt.subplot(3, 1, 2)
+    plt.plot(x, deflexion, color='green')
+    plt.title("Diagrama de Deflexión")
+    plt.xlabel("Posición a lo largo de la viga (m)")
+    plt.ylabel("Deflexión (m)")
+    plt.grid(True)
+
+    plt.subplot(3, 1, 3)
+    plt.step(x, V, where='post', color='red')
+    plt.title("Diagrama de Esfuerzo Cortante")
+    plt.xlabel("Posición a lo largo de la viga (m)")
+    plt.ylabel("Esfuerzo Cortante (N)")
+    plt.grid(True)
+
+    plt.tight_layout()
+    plt.show()
+
+# Solicitar datos al usuario
+print("Ingrese las características de la viga:")
+longitud = float(input("Longitud de la viga (m): "))
+posicion_carga = float(input("Posición de la carga (m): "))
+carga = float(input("Magnitud de la carga (N): "))
+material = input("Material (acero, madera, aluminio): ")
+seccion = input("Tipo de sección transversal (rectangular, circular, I): ")
+
+# Validación de entrada
+if material not in materiales:
+    print("Material no válido. Se usará acero por defecto.")
+    material = 'acero'
+if seccion not in ['rectangular', 'circular', 'I']:
+    print("Sección no válida. Se usará rectangular por defecto.")
+    seccion = 'rectangular'
+
+# Calcular inercia y módulo de elasticidad
+inercia = calcular_inercia(seccion)
+modulo_elasticidad = materiales[material]
+
+# Mostrar los diagramas de esfuerzos
+mostrar_diagramas(longitud, posicion_carga, carga, modulo_elasticidad, inercia)
